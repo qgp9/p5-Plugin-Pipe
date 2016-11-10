@@ -6,202 +6,143 @@ use open ':std', ':encoding(UTF-8)';
 use strict;
 use warnings;
 use utf8;
-
-#==========================
-package Peasis::Base; 
-use strict;
-use warnings;
-use base 'Import::Base';
-our @IMPORT_MODULES = (
-  'strict', 
-  'warnings',
-  'feature' => [qw( :5.10 )],
-  'Data::Dumper',
-  'Function::Parameters',
-);
-our %IMPORT_BUNDLES = (
-  plugin => [ qw/<Moo namespace::autoclean/ ],
-);
-
-#==========================
-package Peasis::Plugin; 
-use Peasis::Base 'plugin';
-
+use v5.10;
+use Data::Dumper;
+use base 'lib';
 
 
 #==========================
-package Peasis::Pipe;
-use Peasis::Base 'plugin';
-has plugins => ( is => 'rw', default=>sub{{}} );
-has pipes   => ( is => 'rw', default=>sub{[undef]} );
-
-
-method pipe_id ( $plugin_name, $pipe_name ) {
-  my $plugin = $self->plugins{$plugin_name};
-  return undef unless defined $pid;
-  return $pid->{pipes}{$pipe_name};
-}
-
-method register_plugin ( $plugin_name ) {
-  # TODO handle type;
-  unless ( $self->get_plugin( $plugin_name ) ){
-    eval "use $plugin";                 #TODO handle exception.
-    $self->plugins->{$plugin_name} = $plugin_name->new; # TODO args
-  }
-}
-
-method get_plugin ( $plugin_name ) {
-  return $self->plugins->{$plugin_name};
-}
-
-method _get_or_create_plugin ( $plugin_name ) {
-  my $plugin = $self->get_plugin( $plugin_name );
-  $self->register_plugin($plugin_name) unless $plugin
-  $plugin = $self->get_plugin( $plugin_name );
-  return $plugin;
-}
-
-method _get_pipe ( $name ) {
-  my $id = $self->pipe_map->{$name};
-  return defined $id ? $self->pipes->[$id] : undef;
-}
-method _add_pipe ( $name ) {
-  push @{$self->pipes}, { name=>$name };
-  $self->pipe_map->{$name} = $#{$self->pipes};
-
-}
-method _get_or_create_pipe ( $name ){
-  my $pipe = $self->_get_pipe($name);
-  unless ( $pipe ){
-
-  }
-}
-
-method _add_worker ( $name, $worker ){
-  $self->workers->{$name} = $worker;  # TODO check dups?
-}
-method _get_worker ( $name ) {
-  return $self->workers->{$name};
-}
-
-method _get_or_create_wroker ( $name ){
-  my $worker = $self->_get_worker( $name );
-  unless ( $worker ) {
-    eval qq/use $name;/;  # TODO error handle
-    $worker = $name->new; # TODO args
-    $self->_add_worker( $name, $worker );
-  }
-  return $worker;
-}
-
-method register_pipe ( %config ) {
-  my $pipe_name   = $config{pipe}   or exit 1;
-  my $holder_name = $config{holder} or exit 1;
-  my $holder  = $self->_get_or_create_plugin($holder_name) ;
-  my $pipe    = $self->_get_or_create_pipe($pipe_name, $holder);
-  return $pipe;
-}
-
-
-method join {
-  my $pipe_name   = $config{pipe}   or exit 1;
-  my $worker_name = $config{worker} or exit 1;
-  my $action      = $config{action} or exit 1;
-  my $pipe        = $self->_get_or_create_pipe  ( $pipe_name );
-  my $worker      = $self->_get_or_create_worker( $worker_name );
-  $self->_add_action( $pipe, $worker, $action );
-}
 
 #==========================
-package Peasis::Runner;
-use Moo;
-use namespace::clean;
-has plugins => ( is => 'ro' );
-
-sub run {
-
-}
 
 #==========================
-package Peasis::Plugin::Example1;
+package Plugin::Pipeline::Example1;
 use Moo;
 use namespace::clean;
 
-has pipe => ( is=>'ro' );
-has pipe_some1 => (is=>'rw');
+has first_pipe => ( is=>'ro' );
+
+sub recieve_pipe_info {
+  my ( $self, $pipe_info ) = @_;
+  $self->{first_pipe} = $pipe_info->{pipe};
+}
 
 sub something1 {
   my ( $self ) = @_;
-  $self->pipe_some1->run;
   say "something1 by Example1";
+  $self->first_pipe->run();
+
 }
 
+sub some_function1 {
+  say "some_function1 in Example1";
+}
+
+
 #==========================
-package Peasis::Plugin::Example2;
+package Plugin::Pipeline::Example2;
 use Moo;
 use namespace::clean;
 
-has pipe => ( is=>'ro' );
-has pipe_some1 => (is=>'rw');
-
-sub register {
-  my ( $self, $pipe ) = @_;
-  $pipe->register_in('Peasis::Plugin::Example1','do_somethine1', &something1);
-}
-
-sub something1 {
+sub something2 {
   my ($self) = @_;
   say "something1 by Example2";
+}
+sub something3 {
+  say "test by Example2 , something3";
 }
 
 
 #==========================
 package main;
 use Data::Dumper;
+use Plugin::Pipeline;
+use Plugin::Pipeline::Pipe;
 use strict;
 use warnings;
 
+$Plugin::Pipeline::Pipe::debug = 2;
 =comment
-my $pipe = Peasis::Pipe->new;
-$pipe->register_plugin('Peasis::Plugin::Example1')
-$pipe->register_plugin('Peasis::Plugin::Example2')
+my $pipe = Plugin::Pipeline->new;
+$pipe->register_plugin('Plugin::Pipeline::Example1')
+$pipe->register_plugin('Plugin::Pipeline::Example2')
 $pipe->run;
 =cut
 
-my $pipe2 = Peasis::Pipe->new();
+my $pipe2 = Plugin::Pipeline->new();
+$pipe2->join_pipe (
+  join    => 'root',
+  worker  => 'Plugin::Pipeline::Example1',
+  action  => 'something1',
+  desc    => 'something1 by Example1'
+);
 $pipe2->register_pipe (
-  pipe   => 'Peasis::Plugin::Example1-do_something1',
-  plugin => 'Peasis::Plugin::Example1',
+  pipe => 'test',
+  join => 'root',
+  weight => 50,
+  desc    => 'test pipe',
+  # provider => 'Plugin::Pipeline::Example1',
+  # unique => 1
+);
+$pipe2->register_pipe (
+  pipe => 'PIPE::Plugin::Pipeline::Example1',
+  provider => 'Plugin::Pipeline::Example1',
 );
 $pipe2->join_pipe (
-  pipe    => 'root',
-  worker  => 'Peasis::Plugin::Example2',
-  action  => 'something1',
+  join => 'PIPE::Plugin::Pipeline::Example1',
+  action => sub{ say 'This is PIPE::Plugin::Pipeline::Example1'},
 );
 $pipe2->join_pipe( 
-  pipe    => 'Peasis::Plugin::Example1-do_something1',
-  worker  => 'Peasis::Plugin::Example2',
-  action  => 'something1'
+  join    => 'root',
+  worker  => 'Plugin::Pipeline::Example2',
+  action  => 'something2',
+  desc    => 'something2'
 );
 
+$pipe2->join_pipe( 
+  join    => 'test',
+  worker  => 'Plugin::Pipeline::Example2',
+  #action  => 'something3',
+  action  => \&Plugin::Pipeline::Example2::something3,
+  desc    => 'something3',
+);
+
+$pipe2->join_pipe(
+  join  => 'root',
+  #plugin  => 'Plugin::Pipeline::Example1',
+  action  => \&Plugin::Pipeline::Example1::some_function1,
+  desc    => 'some_function',
+);
+
+my $testsub = sub { say "This is test sub"; };
+
+$pipe2->join_pipe(
+  join    => 'test',
+  action  => $testsub,
+  desc    => 'testsub',
+);
+
+$pipe2->compile;
 $pipe2->run;
+#use Data::Dumper;
+#say Dumper $pipe2;
 
 =comment
 my $pipe3 = Peasis::Pipe->new(
   pipes =>[
     {
-      pipe   => 'Peasis::Plugin::Example1-do_something1',
-      holder => 'Peasis::Plugin::Example1',
+      pipe   => 'Plugin::Pipeline::Example1-do_something1',
+      holder => 'Plugin::Pipeline::Example1',
     }
   ],
   join => [
     { 
       pipe   => 'root',
-      worker => 'Peasis::Plugin::Example2',
+      worker => 'Plugin::Pipeline::Example2',
       action => 'something1',
     },{
-      pipe   => 'Peasis::Plugin::Example1-do_something1',
-      worker => 'Peasis::Plugin::Example2',
+      pipe   => 'Plugin::Pipeline::Example1-do_something1',
+      worker => 'Plugin::Pipeline::Example2',
       action => 'something1'
     },
   ],
@@ -213,18 +154,18 @@ $pip3->run;
 my $pipe4 = Peasis::Pipe->new(
   pipes => [
     {
-      pipe   => 'Peasis::Plugin::Example1-do_something1',
-      holder => 'Peasis::Plugin::Example1',
+      pipe   => 'Plugin::Pipeline::Example1-do_something1',
+      holder => 'Plugin::Pipeline::Example1',
     }
   ],
   join => [
     { 
       pipe   => 'root',
-      worker => 'Peasis::Plugin::Example2',
+      worker => 'Plugin::Pipeline::Example2',
       action => 'something1',
     },{
-      pipe   => 'Peasis::Plugin::Example1-do_something1',
-      worker => 'Peasis::Plugin::Example2',
+      pipe   => 'Plugin::Pipeline::Example1-do_something1',
+      worker => 'Plugin::Pipeline::Example2',
       action => 'something1'
     },
   ],
