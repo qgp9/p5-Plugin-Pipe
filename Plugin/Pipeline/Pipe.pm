@@ -78,7 +78,7 @@ method _action( $action, $data ){
   # [2]    -> compiled
   #### Compile Action in the begining
   unless ( $action->[2] ){ # plugin
-    unless ( $action->[1][0] ){ # worker
+    unless ( $action->[1][0] ){ # worker obj
       if ( $action->[1][1] ){   # plugin
         #### Create Worker Object
         $action->[1][0] = $action->[1][1]->new;
@@ -87,10 +87,12 @@ method _action( $action, $data ){
         if( $pipe ){
           $action->[1][0]->recieve_pipe_info({pipe=>$pipe});
         }
-        #### Compile Action
-        my $tmp_action = $action->[0];
-        $action->[0] = sub{$tmp_action->($action->[1][0],@_)};
       }
+    }
+    if ( $action->[1][0] ){
+      #### Compile Action
+      my $tmp_action = $action->[0];
+      $action->[0] = sub{$tmp_action->($action->[1][0],@_)};
     }
     $action->[2] = 1; # Set "Is Compiled"
   }

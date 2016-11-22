@@ -24,6 +24,51 @@ has debug => ( is => 'rw', default => 0 );
 * root -> alias of 'pipe_name'
 * TODO : check circular
 
+# action          worker
+  method          object
+  function        None : will be set as a function
+
+
+* worker var
+
+# worker        worker_method           
+  object        package name            object will generated in advance 
+                object ref              object ref is always used
+                generation function     object will be genereate by function
+  function      auto by "action"
+  pipe          auto by "pipe"
+
+# worker lifetime ( only for object ) -> module || generator
+ * action : generated and removed per an action  : while module || generator
+ * pipe   : generated and removed per an action  : while module || generator
+ * top   : generated and removed per top pipe    : while module || generator
+ * persistance : keep for life of pipeline object 
+
+# only for object
+# worker_db ( hash ) => { worker_id => worker_container, ... }
+* worker_id : 
+  * 
+* worker_container = {
+  type    => "module || obj || generator",
+  pipes   => [ top_pipe_id,... ],
+  worker  => obj_ref || undef,
+  module => "name_of_module",
+  generator => CODE ref,
+  opts    => {}
+}
+
+# action_container = {
+  type   => "obj || function || pipe"
+  action => CODE ref || pipe
+  worker => worker_contaier 
+  opts   => {}
+}
+
+# call of action
+ * obj : worker_conatiner->{worker}->action->($data)
+ * pipe : action->run($data)
+ * function : action->($data);
+
 let's start from 'module' with only an worker.
 =cut
 
@@ -190,6 +235,46 @@ method compile () {
         $join->_add_action( [], $conf->{'action'},\%action_conf );
       }
       $join_number += 100; # Step 100
+    }
+  }
+}
+
+method load_config ( $conf ) {
+  for my $key ( keys %$conf ){
+    if( $key =~ /^-/ ) {
+    }else{
+      my $pipe_name =$key;
+      my $list = $conf->{$pipe_name};
+      for my $c ( @$list ){ 
+        my $type = ref $c;
+        if ( !$type || $type eq 'CODE'){
+          $self->join_pipe(
+            'join' => $pipe_name,
+            'action' => $c,
+          );
+        }elsif ( $type eq 'ARRAY' ){
+          $self->join_pipe(
+            'join' => $pipe_name,
+            'worker' => $c->[0],
+            'action' => $c->[1],
+          );
+        }elsif ( $c->{'action'} ){
+          $self->join_pipe( 
+            'join' => $pipe_name,
+            %$c 
+          );
+        }elsif ( $c->{'pipe'} ){
+          $self->register_pipe(
+            'join' => $pipe_name,
+            %$c
+          );
+        }elsif ( $c->{'provider'} ) {
+          $self->register_pipe(
+            'pipe' => $pipe_name,
+            %$c
+          );
+        }
+      }
     }
   }
 }

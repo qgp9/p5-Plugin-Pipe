@@ -46,7 +46,7 @@ use namespace::clean;
 
 sub something2 {
   my ($self) = @_;
-  say "something2 by Example2";
+  say "something1 by Example2";
 }
 sub something3 {
   say "test by Example2 , something3";
@@ -63,71 +63,52 @@ use warnings;
 
 $Plugin::Pipeline::Pipe::debug = 2;
 
-#test_simple_method_call();
-test_configure();
+test_simple_method_call();
 
-=pod
- 
-=cut
-
-sub test_configure2 {
-  my $pipe2 = Plugin::Pipeline->new( name=>'my_pipeline' );
-  $pipe2->load_config([
-      { 
-        level1 => [
-          {level1_1 => [],}
-
-        ], 
-      },
-      { 
-        level2 => [
-        ], 
-      },
-      { 
-        level3 => [] 
-      },
-      { 
-        root => [
-          [ sub{ say "root1"} ],
-          { level4 => [] }.
-        ],
-      },
-    ]);
-
-  $pipe2->compile;
-  $pipe2->run;
-}
 
 sub test_configure {
-  my $pipe2 = Plugin::Pipeline->new( name=>'my_pipeline' );
-  $pipe2->load_config({
-      'root' => [{
-          worker  => 'Plugin::Pipeline::Example1',
-          action  => 'something1',
-        },{
-          pipe => 'test',
-          weight => 50,
-        },{
-          worker  => 'Plugin::Pipeline::Example1',
-          action  => 'something1',
-        },
-        [ qw/Plugin::Pipeline::Example2 something2/ ],
-        \&Plugin::Pipeline::Example1::some_function1,
-
-      ],
-      'test' => [{
-          worker  => 'Plugin::Pipeline::Example2',
-          action  => \&Plugin::Pipeline::Example2::something3,
-        },
-        sub { say "This is test sub"; },
-      ],
-      'PIPE::Plugin::Pipeline::Example1' => [{
-          provider => 'Plugin::Pipeline::Example1',
-        },{
-          action => sub{ say 'This is PIPE::Plugin::Pipeline::Example1'},
-        },
-      ],
-    }
+  my $pipe2 = Plugin::Pipeline->new();
+  my %conf = (
+    pipe => [
+      {
+        pipe => 'test',
+        join => 'root',
+        weight => 50,
+        desc    => 'test pipe',
+      },{
+        pipe => 'PIPE::Plugin::Pipeline::Example1',
+        provider => 'Plugin::Pipeline::Example1',
+      },
+    ],
+    join => [
+      {
+        join    => 'root',
+        worker  => 'Plugin::Pipeline::Example1',
+        action  => 'something1',
+        desc    => 'something1 by Example1'
+      },{
+        join => 'PIPE::Plugin::Pipeline::Example1',
+        action => sub{ say 'This is PIPE::Plugin::Pipeline::Example1'},
+      },{
+        join    => 'root',
+        worker  => 'Plugin::Pipeline::Example2',
+        action  => 'something2',
+        desc    => 'something2'
+      },{
+        join    => 'test',
+        worker  => 'Plugin::Pipeline::Example2',
+        action  => \&Plugin::Pipeline::Example2::something3,
+        desc    => 'something3',
+      },{
+        join  => 'root',
+        action  => \&Plugin::Pipeline::Example1::some_function1,
+        desc    => 'some_function',
+      },{
+        join    => 'test',
+        action  => sub { say "This is test sub"; },,
+        desc    => 'testsub',
+      }
+    ],
   );
 
   $pipe2->compile;
